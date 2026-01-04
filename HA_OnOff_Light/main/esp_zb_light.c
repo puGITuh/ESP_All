@@ -38,39 +38,49 @@ static void bdb_start_top_level_commissioning_cb(uint8_t mode_mask)
 
 void esp_zb_app_signal_handler(esp_zb_app_signal_t *signal_struct)
 {
-    uint32_t *p_sg_p       = signal_struct->p_app_signal;
+    uint32_t *p_sg_p = signal_struct->p_app_signal;
     esp_err_t err_status = signal_struct->esp_err_status;
     esp_zb_app_signal_type_t sig_type = *p_sg_p;
-    switch (sig_type) {
+    switch (sig_type)
+    {
     case ESP_ZB_ZDO_SIGNAL_SKIP_STARTUP:
         ESP_LOGI(TAG, "Initialize Zigbee stack");
         esp_zb_bdb_start_top_level_commissioning(ESP_ZB_BDB_MODE_INITIALIZATION);
         break;
     case ESP_ZB_BDB_SIGNAL_DEVICE_FIRST_START:
     case ESP_ZB_BDB_SIGNAL_DEVICE_REBOOT:
-        if (err_status == ESP_OK) {
+        if (err_status == ESP_OK)
+        {
             ESP_LOGI(TAG, "Deferred driver initialization %s", deferred_driver_init() ? "failed" : "successful");
             ESP_LOGI(TAG, "Device started up in %s factory-reset mode", esp_zb_bdb_is_factory_new() ? "" : "non");
-            if (esp_zb_bdb_is_factory_new()) {
+            if (esp_zb_bdb_is_factory_new())
+            {
                 ESP_LOGI(TAG, "Start network steering");
                 esp_zb_bdb_start_top_level_commissioning(ESP_ZB_BDB_MODE_NETWORK_STEERING);
-            } else {
+            }
+            else
+            {
                 ESP_LOGI(TAG, "Device rebooted");
             }
-        } else {
+        }
+        else
+        {
             /* commissioning failed */
             ESP_LOGW(TAG, "Failed to initialize Zigbee stack (status: %s)", esp_err_to_name(err_status));
         }
         break;
     case ESP_ZB_BDB_SIGNAL_STEERING:
-        if (err_status == ESP_OK) {
+        if (err_status == ESP_OK)
+        {
             esp_zb_ieee_addr_t extended_pan_id;
             esp_zb_get_extended_pan_id(extended_pan_id);
             ESP_LOGI(TAG, "Joined network successfully (Extended PAN ID: %02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x, PAN ID: 0x%04hx, Channel:%d, Short Address: 0x%04hx)",
                      extended_pan_id[7], extended_pan_id[6], extended_pan_id[5], extended_pan_id[4],
                      extended_pan_id[3], extended_pan_id[2], extended_pan_id[1], extended_pan_id[0],
                      esp_zb_get_pan_id(), esp_zb_get_current_channel(), esp_zb_get_short_address());
-        } else {
+        }
+        else
+        {
             ESP_LOGI(TAG, "Network steering was not successful (status: %s)", esp_err_to_name(err_status));
             esp_zb_scheduler_alarm((esp_zb_callback_t)bdb_start_top_level_commissioning_cb, ESP_ZB_BDB_MODE_NETWORK_STEERING, 1000);
         }
@@ -92,9 +102,12 @@ static esp_err_t zb_attribute_handler(const esp_zb_zcl_set_attr_value_message_t 
                         message->info.status);
     ESP_LOGI(TAG, "Received message: endpoint(%d), cluster(0x%x), attribute(0x%x), data size(%d)", message->info.dst_endpoint, message->info.cluster,
              message->attribute.id, message->attribute.data.size);
-    if (message->info.dst_endpoint == HA_ESP_LIGHT_ENDPOINT) {
-        if (message->info.cluster == ESP_ZB_ZCL_CLUSTER_ID_ON_OFF) {
-            if (message->attribute.id == ESP_ZB_ZCL_ATTR_ON_OFF_ON_OFF_ID && message->attribute.data.type == ESP_ZB_ZCL_ATTR_TYPE_BOOL) {
+    if (message->info.dst_endpoint == HA_ESP_LIGHT_ENDPOINT)
+    {
+        if (message->info.cluster == ESP_ZB_ZCL_CLUSTER_ID_ON_OFF)
+        {
+            if (message->attribute.id == ESP_ZB_ZCL_ATTR_ON_OFF_ON_OFF_ID && message->attribute.data.type == ESP_ZB_ZCL_ATTR_TYPE_BOOL)
+            {
                 light_state = message->attribute.data.value ? *(bool *)message->attribute.data.value : light_state;
                 ESP_LOGI(TAG, "Light sets to %s", light_state ? "On" : "Off");
                 light_driver_set_power(light_state);
@@ -107,13 +120,26 @@ static esp_err_t zb_attribute_handler(const esp_zb_zcl_set_attr_value_message_t 
 static esp_err_t zb_action_handler(esp_zb_core_action_callback_id_t callback_id, const void *message)
 {
     esp_err_t ret = ESP_OK;
-    switch (callback_id) {
+    switch (callback_id)
+    {
     case ESP_ZB_CORE_SET_ATTR_VALUE_CB_ID:
         ret = zb_attribute_handler((esp_zb_zcl_set_attr_value_message_t *)message);
         break;
     default:
         ESP_LOGW(TAG, "Receive Zigbee action(0x%x) callback", callback_id);
         break;
+    }
+    if (callback_id == ESP_ZB_CORE_SET_ATTR_VALUE_CB_ID)
+    {
+        esp_zb_zcl_set_attr_value_message_t *set_attr_msg = (esp_zb_zcl_set_attr_value_message_t *)message;
+
+        // Prüfen ob es der Level Control Cluster ist
+        if (set_attr_msg->info.cluster == ESP_ZB_ZCL_CLUSTER_ID_LEVEL_CONTROL)
+        {
+            uint8_t value = *(uint8_t *)set_attr_msg->attribute.data.value;
+            ESP_LOGI("ZIGBEE_INT", "Wert von HA empfangen: %d", value);
+            // Hier dein 'int' verarbeiten!
+        }
     }
     return ret;
 }
@@ -137,9 +163,37 @@ static void esp_zb_task(void *pvParameters)
     ESP_ERROR_CHECK(esp_zb_start(false));
     esp_zb_stack_main_loop();
 }
+// Dies muss INNERHALB einer Funktion stehen (z.B. app_main oder einer Setup-Funktion)
+void setup_zigbee_clusters()
+{
+    // Cluster-Liste erstellen
+    esp_zb_cluster_list_t *cluster_list = esp_zb_zcl_cluster_list_create();
 
+    // On/Off Cluster hinzufügen
+    esp_zb_on_off_cluster_cfg_t on_off_cfg = {.on_off = false};
+    esp_zb_attribute_list_t *on_off_attr = esp_zb_on_off_cluster_create(&on_off_cfg);
+    esp_zb_cluster_list_add_on_off_cluster(cluster_list, on_off_attr, ESP_ZB_ZCL_CLUSTER_SERVER_ROLE);
+
+    // Level Control Cluster hinzufügen (für deinen Int-Wert)
+    esp_zb_level_cluster_cfg_t level_cfg = {.current_level = 0};
+    esp_zb_attribute_list_t *level_attr = esp_zb_level_cluster_create(&level_cfg);
+    esp_zb_cluster_list_add_level_cluster(cluster_list, level_attr, ESP_ZB_ZCL_CLUSTER_SERVER_ROLE);
+
+    // Endpunkt-Liste und Registrierung
+    esp_zb_ep_list_t *ep_list = esp_zb_ep_list_create();
+
+    esp_zb_endpoint_config_t endpoint_config = {
+        .endpoint = 1,
+        .app_profile_id = ESP_ZB_AF_HA_PROFILE_ID,
+        .app_device_id = ESP_ZB_HA_DIMMABLE_LIGHT_DEVICE_ID,
+        .app_device_version = 0};
+
+    esp_zb_ep_list_add_ep(ep_list, cluster_list, endpoint_config);
+    esp_zb_device_register(ep_list);
+}
 void app_main(void)
 {
+    setup_zigbee_clusters();
     esp_zb_platform_config_t config = {
         .radio_config = ESP_ZB_DEFAULT_RADIO_CONFIG(),
         .host_config = ESP_ZB_DEFAULT_HOST_CONFIG(),
@@ -147,4 +201,6 @@ void app_main(void)
     ESP_ERROR_CHECK(nvs_flash_init());
     ESP_ERROR_CHECK(esp_zb_platform_config(&config));
     xTaskCreate(esp_zb_task, "Zigbee_main", 4096, NULL, 5, NULL);
+    // In deiner app_main Funktion
+    esp_zb_core_action_handler_register(zb_action_handler);
 }
