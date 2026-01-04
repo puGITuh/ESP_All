@@ -193,7 +193,7 @@ void setup_zigbee_clusters()
 }
 void app_main(void)
 {
-    setup_zigbee_clusters();
+   // setup_zigbee_clusters();
     esp_zb_platform_config_t config = {
         .radio_config = ESP_ZB_DEFAULT_RADIO_CONFIG(),
         .host_config = ESP_ZB_DEFAULT_HOST_CONFIG(),

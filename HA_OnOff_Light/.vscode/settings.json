@@ -5,8 +5,8 @@
   ],
   "idf.flashType": "UART",
   "idf.customExtraVars": {
-    "OPENOCD_USB_ADAPTER_LOCATION": "20-2.2",
-    "IDF_TARGET": "esp32c6"
+    "IDF_TARGET": "esp32c6",
+    "OPENOCD_USB_ADAPTER_LOCATION": "20-2.2"
   },
   "clangd.path": "/Users/philipp/.espressif/tools/esp-clang/esp-19.1.2_20250312/esp-clang/bin/clangd",
   "clangd.arguments": [
